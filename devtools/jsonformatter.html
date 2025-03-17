@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Formatter</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.5/addon/search/searchcursor.min.js"></script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <!-- and it's easy to individually load additional languages -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+    <script>hljs.highlightAll();</script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            display: flex; 
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            padding: 20px; 
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        .container {
+            display: flex;
+            width: 100%;
+            height: 90vh;
+            gap: 10px;
+        }
+        .editor-container {
+            flex: 1 0 0;  /* Equal width, don't grow beyond 50% */
+            display: flex;
+            flex-direction: column;
+            min-width: 0;  /* Prevent content from causing overflow */
+            max-width: 50%;  /* Explicitly limit to half the container */
+            overflow: hidden;  /* Prevent overflow */
+        }
+        .search-box {
+            margin-bottom: 5px;
+        }
+        .error { 
+            color: red; 
+            white-space: pre-wrap;
+        }
+        .CodeMirror {
+            height: 100%;
+            border: 1px solid #ccc;
+            width: 100%;  /* Take full width of parent */
+            flex: 1;  /* Take remaining space */
+            overflow: auto !important;  /* Allow scrolling instead of stretching */
+        }
+        .highlight {
+            background-color: yellow;
+        }
+        .marked-text {
+            background-color: rgba(255, 0, 0, 0.3);
+        }
+        .search-controls {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="editor-container">
+            <textarea id="input"></textarea>
+        </div>
+        <div class="editor-container">
+            <div class="search-controls">
+                <input type="text" id="search" class="search-box" placeholder="Zoeken...">
+                <button id="prev">◀</button>
+                <button id="next">▶</button>
+                <label><input type="checkbox" id="caseSensitive"> Hoofdlettergevoelig</label>
+            </div>
+            <textarea id="output" class="language-html"></textarea>
+        </div>
+    </div>
+    
+    <script>
+        const inputEditor = CodeMirror.fromTextArea(document.getElementById("input"), {
+            mode: "application/json",
+            lineNumbers: true,
+            matchBrackets: true,
+            autoCloseBrackets: true,
+            lineWrapping: true  // Add line wrapping to prevent horizontal stretching
+        });
+        
+        const outputEditor = CodeMirror.fromTextArea(document.getElementById("output"), {
+            mode: "application/json",
+            lineNumbers: true,
+            readOnly: true,
+            matchBrackets: true,
+            lineWrapping: true  // Add line wrapping to prevent horizontal stretching
+        });
+
+        inputEditor.on("change", () => {
+            formatJSON();
+        });
+
+        function extractJSON(text) {
+            const match = text.match(/\{[^]*\}/);
+            return match ? match[0] : text;
+        }
+
+        function formatJSON() {
+            const input = inputEditor.getValue();
+            
+            const jsonText = extractJSON(input);
+            markNonJSON(input, jsonText);
+            try {
+                const json = JSON.parse(jsonText);
+                outputEditor.setValue(JSON.stringify(json, null, 4));
+            } catch (e) {
+                outputEditor.setValue(`Fout in JSON: ${e.message}`);
+            }
+        }
+
+        function markNonJSON(fullText, jsonText) {
+            inputEditor.operation(() => {
+                inputEditor.getAllMarks().forEach(mark => mark.clear());
+                const startIdx = fullText.indexOf(jsonText);
+                if (startIdx === -1) return;
+                if (startIdx > 0) {
+                    inputEditor.markText({line: 0, ch: 0}, inputEditor.posFromIndex(startIdx), {className: "marked-text"});
+                }
+                const endIdx = startIdx + jsonText.length;
+                if (endIdx < fullText.length) {
+                    inputEditor.markText(inputEditor.posFromIndex(endIdx), {line: inputEditor.lineCount(), ch: 0}, {className: "marked-text"});
+                }
+            });
+        }
+
+        let searchCursor = null;
+        
+        function searchJSON(forward = true) {
+            const query = document.getElementById("search").value;
+            const caseSensitive = document.getElementById("caseSensitive").checked;
+            
+            if (!query) return;
+            
+            if (!searchCursor || searchCursor.atOccurrence === undefined) {
+                searchCursor = outputEditor.getSearchCursor(query, null, !caseSensitive);
+            }
+            
+            if (forward ? searchCursor.findNext() : searchCursor.findPrevious()) {
+                outputEditor.scrollIntoView(searchCursor.from());
+                outputEditor.markText(searchCursor.from(), searchCursor.to(), { className: "highlight" });
+            }
+        }
+
+        document.getElementById("search").addEventListener("input", () => {
+            searchCursor = null;
+            searchJSON(true);
+        });
+        document.getElementById("next").addEventListener("click", () => searchJSON(true));
+        document.getElementById("prev").addEventListener("click", () => searchJSON(false));
+    </script>
+</body>
+</html>
