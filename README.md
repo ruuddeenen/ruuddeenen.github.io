@@ -1,1 +1,1 @@
-ruuddeenen.ggithub.io
+https://ruuddeenen.github.io
