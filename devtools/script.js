@@ -3,7 +3,7 @@ const inputEditor = CodeMirror.fromTextArea(document.getElementById("input"), {
     lineNumbers: true,
     matchBrackets: true,
     autoCloseBrackets: true,
-    lineWrapping: true  // Add line wrapping to prevent horizontal stretching
+    lineWrapping: true
 });
 
 const outputEditor = CodeMirror.fromTextArea(document.getElementById("output"), {
@@ -11,26 +11,31 @@ const outputEditor = CodeMirror.fromTextArea(document.getElementById("output"), 
     lineNumbers: true,
     readOnly: true,
     matchBrackets: true,
-    lineWrapping: true  // Add line wrapping to prevent horizontal stretching
+    lineWrapping: true
 });
 
-inputEditor.on("change", () => {
-    formatJSON();
-});
+const formatToggle = document.getElementById("formatToggle");
+formatToggle.value = "format"; // Start in format mode
+
+formatToggle.addEventListener("change", processJSON);
+inputEditor.on("change", processJSON);
 
 function extractJSON(text) {
     const match = text.match(/\{[^]*\}/);
     return match ? match[0] : text;
 }
 
-function formatJSON() {
+function processJSON() {
     const input = inputEditor.getValue();
-    
     const jsonText = extractJSON(input);
     markNonJSON(input, jsonText);
+    
     try {
         const json = JSON.parse(jsonText);
-        outputEditor.setValue(JSON.stringify(json, null, 4));
+        const output = formatToggle.value === "format"
+            ? JSON.stringify(json, null, 4)  // Format with 4 spaces
+            : JSON.stringify(json);          // Minify
+        outputEditor.setValue(output);
     } catch (e) {
         outputEditor.setValue(`Fout in JSON: ${e.message}`);
     }
